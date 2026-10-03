@@ -1,0 +1,64 @@
+name: Update README
+
+on:
+  # 手动触发
+  workflow_dispatch:
+  # 定时触发（UTC，每天 02:00 = 北京时间 10:00）
+  schedule:
+    - cron: '0 2 * * *'
+  # 当生成逻辑或模板变更时触发（不对 README.md 生效，避免提交后自我循环）
+  push:
+    branches: [main]
+    paths:
+      - 'update.sh'
+      - 'README_Template.md'
+      - '.github/workflows/update.yml'
+
+# 允许 workflow 提交并推回仓库
+permissions:
+  contents: write
+
+# 同一时间只跑一个，避免并发推送冲突
+concurrency:
+  group: update-readme
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate README.md
+        run: |
+          set -euo pipefail
+
+          # 从模板重建 README.md
+          rm -f README.md
+          cp README_Template.md README.md
+
+          # 拉取弹幕数据，解码 JSON 转义（\uXXXX -> emoji）并折叠条目内换行
+          curl -fsS \
+            -d '{"barrage":"银行业","pageNum":1,"pageSize":10,"sort":0}' \
+            -H "Content-Type: application/json" \
+            -X POST https://api.hguofichp.cn/machine/pageSearch \
+          | perl -CO -MJSON::PP -ne 'my $d=decode_json($_); print join("\n\n", map { my $s=$_->{barrage}; $s =~ s/\s*\n\s*/ /g; $s =~ s/^\s+|\s+$//g; $s } @{$d->{data}{list}}), "\n"' \
+          >> README.md
+
+      - name: Commit and push if changed
+        run: |
+          set -euo pipefail
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add README.md
+
+          if git diff --cached --quiet; then
+            echo "README.md 无变化，跳过提交。"
+            exit 0
+          fi
+
+          git commit -m "chore: update README.md [skip ci]"
+          git push
