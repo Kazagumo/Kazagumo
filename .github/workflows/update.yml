@@ -40,7 +40,7 @@ jobs:
 
           # 拉取弹幕数据，解码 JSON 转义（\uXXXX -> emoji）并折叠条目内换行
           curl -fsS \
-            -d '{"barrage":"银行业","pageNum":1,"pageSize":10,"sort":0}' \
+            -d '{"barrage":"if","pageNum":1,"pageSize":10,"sort":0}' \
             -H "Content-Type: application/json" \
             -X POST https://api.hguofichp.cn/machine/pageSearch \
           | perl -CO -MJSON::PP -ne 'my $d=decode_json($_); print join("\n\n", map { my $s=$_->{barrage}; $s =~ s/\s*\n\s*/ /g; $s =~ s/^\s+|\s+$//g; $s } @{$d->{data}{list}}), "\n"' \
