@@ -6,11 +6,11 @@ on:
   # 定时触发（UTC，每天 02:00 = 北京时间 10:00）
   schedule:
     - cron: '0 2 * * *'
-  # 当生成逻辑或模板变更时触发（不对 README.md 生效，避免提交后自我循环）
+  # 当生成脚本或模板变更时触发（不对 README.md 生效，避免提交后自我循环）
   push:
     branches: [main]
     paths:
-      - 'update.sh'
+      - 'expand_md.pl'
       - 'README_Template.md'
       - '.github/workflows/update.yml'
 
@@ -38,13 +38,8 @@ jobs:
           rm -f README.md
           cp README_Template.md README.md
 
-          # 拉取弹幕数据，解码 JSON 转义（\uXXXX -> emoji）并折叠条目内换行
-          curl -fsS \
-            -d '{"barrage":"if","pageNum":1,"pageSize":10,"sort":0}' \
-            -H "Content-Type: application/json" \
-            -X POST https://api.hguofichp.cn/machine/pageSearch \
-          | perl -CO -MJSON::PP -ne 'my $d=decode_json($_); print join("\n\n", map { my $s=$_->{barrage}; $s =~ s/\s*\n\s*/ /g; $s =~ s/^\s+|\s+$//g; $s =~ s/~/\\~/g; $s } @{$d->{data}{list}}), "\n"' \
-          >> README.md
+          # 展开所有 <<<JSON>>> 标记：拉取弹幕、清理、过滤并截断
+          perl expand_md.pl README.md
 
       - name: Commit and push if changed
         run: |
